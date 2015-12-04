@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <bean id="abstractConnectionPool" abstract="true"
+          class="org.ldaptive.pool.BlockingConnectionPool"
+          init-method="initialize"
+          destroy-method="close"
+          p:poolConfig-ref="ldapPoolConfig"
+          p:blockWaitTime="${ldap.pool.blockWaitTime:3000}"
+          p:validator-ref="searchValidator"
+          p:pruneStrategy-ref="pruneStrategy"
+          p:connectionFactory-ref="connectionFactory" />
+
+    <bean id="ldapPoolConfig" class="org.ldaptive.pool.PoolConfig"
+          p:minPoolSize="${ldap.pool.minSize:1}"
+          p:maxPoolSize="${ldap.pool.maxSize:2}"
+          p:validateOnCheckOut="${ldap.pool.validateOnCheckout:false}"
+          p:validatePeriodically="${ldap.pool.validatePeriodically:true}"
+          p:validatePeriod="${ldap.pool.validatePeriod:300}" />
+
+    <bean id="connectionFactory" class="org.ldaptive.DefaultConnectionFactory"
+          p:connectionConfig-ref="connectionConfig" />
+
+    <bean id="connectionConfig" class="org.ldaptive.ConnectionConfig"
+          p:ldapUrl="${ldap.url}"
+          p:connectTimeout="${ldap.connectTimeout:3000}"
+          p:useStartTLS="${ldap.useStartTLS:false}"
+          p:connectionInitializer-ref="bindConnectionInitializer"/>
+
+    <bean id="bindConnectionInitializer" class="org.ldaptive.BindConnectionInitializer"
+          p:bindDn="${ldap.authn.managerDN}">
+        <property name="bindCredential">
+            <bean class="org.ldaptive.Credential" c:password="${ldap.authn.managerPassword}"/>
+        </property>
+    </bean>
+
+
+    <bean id="pruneStrategy" class="org.ldaptive.pool.IdlePruneStrategy"
+          p:prunePeriod="${ldap.pool.prunePeriod:300}"
+          p:idleTime="${ldap.pool.idleTime:300}" />
+
+    <bean id="searchValidator" class="org.ldaptive.pool.SearchValidator" />
+</beans>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/util
+       http://www.springframework.org/schema/util/spring-util.xsd
+       http://www.springframework.org/schema/tx
+       http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <util:list id="packagesToScan">
+        <value>org.jasig.cas.services</value>
+        <value>org.jasig.cas.ticket</value>
+        <value>org.jasig.cas.adaptors.jdbc</value>
+    </util:list>
+
+    <bean id="ticketRegistry" class="org.jasig.cas.ticket.registry.JpaTicketRegistry" />
+
+    <!--
+        Injects EntityManager/Factory instances into beans with
+        @PersistenceUnit and @PersistenceContext
+    -->
+    <bean class="org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor"/>
+
+
+    <bean id="entityManagerFactory"
+          class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean"
+          p:dataSource-ref="dataSource"
+          p:jpaVendorAdapter-ref="jpaVendorAdapter"
+          p:packagesToScan-ref="packagesToScan">
+        <property name="jpaProperties">
+            <props>
+                <prop key="hibernate.dialect">${database.dialect}</prop>
+                <prop key="hibernate.hbm2ddl.auto">update</prop>
+            </props>
+        </property>
+    </bean>
+
+    <bean id="jpaVendorAdapter"
+          class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter"
+          p:generateDdl="true"
+          p:showSql="true"/>
+
+    <bean id="transactionManager"
+          class="org.springframework.orm.jpa.JpaTransactionManager"
+          p:entityManagerFactory-ref="entityManagerFactory" />
+
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+
+    <!-- 注意集群环境下，要为每个节点配置不同的host.name（在cas.properties中） -->
+    <bean id="cleanerLock"
+          class="org.jasig.cas.ticket.registry.support.JpaLockingStrategy"
+          p:uniqueId="${host.name}"
+          p:applicationId="cas-ticket-registry-cleaner@${host.name}"/>
+
+    <bean id="ticketRegistryCleaner"
+          class="org.jasig.cas.ticket.registry.support.DefaultTicketRegistryCleaner"
+          p:ticketRegistry-ref="ticketRegistry"
+          p:logoutManager-ref="logoutManager"
+          p:lock-ref="cleanerLock" />
+
+    <bean id="jobDetailTicketRegistryCleaner"
+          class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean"
+          p:targetObject-ref="ticketRegistryCleaner"
+          p:targetMethod="clean" />
+
+    <bean id="triggerJobDetailTicketRegistryCleaner"
+          class="org.springframework.scheduling.quartz.SimpleTriggerBean"
+          p:jobDetail-ref="jobDetailTicketRegistryCleaner"
+          p:startDelay="20000"
+          p:repeatInterval="1800000" />
+</beans>
